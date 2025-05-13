@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}{{ listing.title }} - Homelab Deal Finder{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Listing Details -->
+    <div class="col-md-8">
+        <h1 class="mb-4">{{ listing.title }}</h1>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Basic Information</h5>
+                <table class="table">
+                    <tr>
+                        <th>Price:</th>
+                        <td>{{ listing.price|price }}</td>
+                    </tr>
+                    <tr>
+                        <th>Seller:</th>
+                        <td>{{ listing.seller }}</td>
+                    </tr>
+                    <tr>
+                        <th>Status:</th>
+                        <td>
+                            <span class="badge bg-{{ 'success' if listing.status == 'active' else 'secondary' }}">
+                                {{ listing.status|title }}
+                            </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Last Updated:</th>
+                        <td>{{ listing.last_updated|datetime }}</td>
+                    </tr>
+                    <tr>
+                        <th>First Seen:</th>
+                        <td>{{ listing.first_seen|datetime }}</td>
+                    </tr>
+                </table>
+                
+                <div class="mt-3">
+                    <a href="{{ listing.url }}" target="_blank" class="btn btn-primary">
+                        View on eBay
+                    </a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Specifications</h5>
+                <table class="table">
+                    <tr>
+                        <th>CPU Model:</th>
+                        <td>{{ listing.cpu_model }}</td>
+                    </tr>
+                    <tr>
+                        <th>RAM:</th>
+                        <td>{{ listing.ram }}</td>
+                    </tr>
+                    <tr>
+                        <th>Storage:</th>
+                        <td>{{ listing.storage }}</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Price History</h5>
+                <canvas id="price-history-chart" class="price-history-chart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TCO Information -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Total Cost of Ownership</h5>
+                <div class="tco-breakdown">
+                    <table class="table">
+                        <tr>
+                            <th>Listing Price:</th>
+                            <td>{{ listing.tco_breakdown.listing_price|price }}</td>
+                        </tr>
+                        <tr>
+                            <th>Power Cost:</th>
+                            <td>{{ listing.tco_breakdown.power_cost|price }}</td>
+                        </tr>
+                        <tr>
+                            <th>Missing Parts:</th>
+                            <td>{{ listing.tco_breakdown.missing_parts_cost|price }}</td>
+                        </tr>
+                        <tr class="table-primary">
+                            <th>Total TCO:</th>
+                            <td>{{ listing.tco|price }}</td>
+                        </tr>
+                    </table>
+                    
+                    <div class="alert alert-info">
+                        <h6>Performance/TCO Ratio:</h6>
+                        <p class="mb-0 display-6">{{ "%.2f"|format(listing.performance_ratio) }}</p>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>Assumptions:</h6>
+                        <ul class="list-unstyled">
+                            <li>Lifespan: {{ listing.tco_breakdown.assumptions.lifespan_years }} years</li>
+                            <li>Electricity: ${{ listing.tco_breakdown.assumptions.electricity_cost_per_kwh }}/kWh</li>
+                            <li>Idle Power: {{ listing.tco_breakdown.assumptions.idle_watts }}W</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        {% if listing.missing_parts %}
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Missing Parts</h5>
+                <ul class="list-group">
+                    {% for part in listing.missing_parts %}
+                    <li class="list-group-item">{{ part }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    // Fetch price history data
+    $.getJSON("{{ url_for('api_price_history', item_id=listing.item_id) }}", function(data) {
+        const ctx = document.getElementById('price-history-chart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(d => d.timestamp),
+                datasets: [{
+                    label: 'Price',
+                    data: data.map(d => d.price),
+                    borderColor: 'rgb(75, 192, 192)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return '$' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    });
+});
+</script>
+{% endblock %} 

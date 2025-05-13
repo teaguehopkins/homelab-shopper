@@ -1,0 +1,24 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+      - db_data:/app/data
+    # Use .env file for environment variables for secrets
+    # See .env.example for required variables
+    # Docker Compose will automatically load a .env file in this directory
+    environment:
+      - FLASK_APP=src/web_app.py
+      - FLASK_ENV=${FLASK_ENV:-development} # Default to development if not set in .env
+      - PYTHONPATH=/app
+      - EBAY_CLIENT_ID=${EBAY_CLIENT_ID} # Will be read from .env or host environment
+      - EBAY_CLIENT_SECRET=${EBAY_CLIENT_SECRET} # Will be read from .env or host environment
+      - SECRET_KEY=${SECRET_KEY} # Will be read from .env or host environment
+    command: >
+      sh -c "mkdir -p /app/data &&
+             gunicorn --bind 0.0.0.0:5000 --timeout 300 src.web_app:app"
+
+volumes:
+  db_data: 

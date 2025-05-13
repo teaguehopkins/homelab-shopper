@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Active Listings - Homelab Deal Finder{% endblock %}
+
+{% block content %}
+<h1 class="mb-4">Active Listings</h1>
+
+<div class="table-responsive">
+    <table id="listings-table" class="table table-striped">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>CPU</th>
+                <th>RAM</th>
+                <th>Storage</th>
+                <th>Price</th>
+                <th>TCO</th>
+                <th>Performance/TCO</th>
+                <th>Last Updated</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for listing in listings %}
+            <tr>
+                <td>
+                    <a href="{{ listing.url }}" target="_blank" class="text-decoration-none">
+                        {{ listing.title }}
+                    </a>
+                </td>
+                <td>{{ listing.cpu_model }}</td>
+                <td>{{ listing.ram }}</td>
+                <td>{{ listing.storage }}</td>
+                <td>{{ listing.price|price }}</td>
+                <td>{{ listing.tco|price }}</td>
+                <td>{{ "%.2f"|format(listing.performance_ratio) }}</td>
+                <td>{{ listing.last_updated|datetime }}</td>
+                <td>
+                    <a href="{{ url_for('listing_details', item_id=listing.item_id) }}" 
+                       class="btn btn-sm btn-primary">
+                        Details
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    $('#listings-table').DataTable({
+        order: [[6, 'desc']],  // Sort by performance/TCO ratio by default
+        pageLength: 25,
+        columns: [
+            null,              // Title
+            null,              // CPU
+            null,              // RAM
+            null,              // Storage
+            null,              // Price
+            null,              // TCO
+            { type: 'num' },   // Performance/TCO
+            null,              // Last Updated
+            { orderable: false }  // Actions
+        ]
+    });
+});
+</script>
+{% endblock %} 

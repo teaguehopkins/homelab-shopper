@@ -1,0 +1,53 @@
+# Production Configuration
+
+# Database Configuration
+database:
+  url: 'sqlite:///data/listings.db'
+
+# eBay API Configuration
+ebay:
+  app_id: '${EBAY_CLIENT_ID}'
+  cert_id: '${EBAY_CLIENT_SECRET}'
+  sandbox: false
+
+# Search Configuration
+search:
+  keywords: "ThinkCentre Tiny, OptiPlex Micro, EliteDesk Mini, N100"
+  category_id: 171957  # PC Desktops & All-In-Ones
+  max_price: 250
+  full_search: false # default finds best 200 matches for each keyword. full_search will find all matches, take longer, and perform more API calls.
+
+# Logging Configuration
+logging:
+  level: 'DEBUG'
+  file: '/app/logs/homelab_deal_finder.log'
+  max_size: 10485760  # 10MB
+  backup_count: 5
+  format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+# Security Configuration
+security:
+  secret_key: '${SECRET_KEY}'  # Should be set via environment variable
+  session_cookie_secure: true
+  session_cookie_httponly: true
+  session_cookie_samesite: 'Lax'
+
+# Application Configuration
+app:
+  debug: false
+  testing: false
+  host: '0.0.0.0'
+  port: 5000
+  workers: 4
+  timeout: 120
+  max_requests: 1000
+  max_requests_jitter: 50
+  tco_assumptions:
+    kwh_cost: 0.14
+    lifespan_years: 5
+    shipping_cost_t_cpu: 10
+    shipping_cost_non_t_cpu: 35
+    required_ram_gb: 16
+    ram_upgrade_flat_cost: 30
+    required_storage_gb: 120
+    storage_upgrade_flat_cost: 15 
