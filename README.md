@@ -1,4 +1,4 @@
-# Homelab Deal Finder – v2
+# Homelab Deal Finder – v1.1
 
 Search eBay for small-form-factor PCs, evaluate *total cost of ownership* (TCO),
 and surface the best performance-per-dollar deals.  Results are shown in a rich
