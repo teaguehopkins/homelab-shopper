@@ -5,6 +5,8 @@ and surface the best performance-per-dollar deals.  Results are shown in a rich
 web UI **and** pushed daily by e-mail when listings exceed your configured
 Perf / $ threshold.
 
+Demo: https://homelab-shopper.onrender.com/
+
 ---
 
 ## 1 .  Features
