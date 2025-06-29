@@ -1,76 +1,77 @@
 CPU	Idle Draw
-Raspberry Pi Model B (3)	4
-Intel N150	6
-Intel N200	6
-Intel N100	6
-Raspberry Pi Model B+ (4)	2.85
-Raspberry Pi Model B (5)	8
+AMD Ryzen 5 5600X	30
 Intel Core i3-N300	6
 Intel Core i3-N305	8.5
-Intel i5-13500T	10
-Intel i5-12500T	10
-Intel i5-11500T	6
-Intel i5-10500T	6
-Intel i5-9500T	3.5
-Intel i7-8700T	10
-Intel i7-8700	16
-Intel i5-8500T	4.5
-Intel i3-8100T	8
-Intel i5-7500T	6
+Intel Core i5-6260U (NUC)	12
+Intel i3-1005G	4
+Intel i3-13100T	3.25
+Intel i3-3220T	19.5
+Intel i3-4130	17.5
+Intel i3-4130T	16
+Intel i3-4160T	15
+Intel i3-6100T	9
+Intel i3-7100	14.5
 Intel i3-7100T	15
+Intel i3-8100T	8
+Intel i3-8145U	4.5
+Intel i3-9100	6.5
+Intel i3-9100T	5
+Intel i5-10100T	5
+Intel i5-10100T	5
+Intel i5-10500T	6
+Intel i5-11500T	6
+Intel i5-12100T	4
+Intel i5-12400T	7
+Intel i5-12500T	10
+Intel i5-13500T	10
+Intel i5-3470T	18
+Intel i5-3570	19
+Intel i5-4150T	12.5
+Intel i5-4250U (NUC)	4.6
+Intel i5-4570T	12
+Intel i5-4590	15.5
+Intel i5-4590T	11
+Intel i5-4670	18.5
+Intel i5-4785T	13.5
+Intel i5-6400T	12
+Intel i5-6500	7
 Intel i5-6500T	12
-AMD Ryzen 5 5600X	30
+Intel i5-6600	10.5
+Intel i5-6600T	10.5
+Intel i5-7400T	10.5
+Intel i5-7500	12.5
+Intel i5-7500T	6
+Intel i5-7600	11
+Intel i5-8365U	3.8
+Intel i5-8400T	9.5
+Intel i5-8500	13
+Intel i5-8500T	4.5
+Intel i5-8600	10
+Intel i5-8600T	6.5
+Intel i5-9500	9
+Intel i5-9500T	3.5
+Intel i5-9600	8.5
+Intel i7-10700T	8
 Intel i7-2600K	66
-Intel Xeon W-1250	60
+Intel i7-4765T	15
+Intel i7-4770	17
+Intel i7-6700	15
+Intel i7-6700T	14
+Intel i7-7600T	8
+Intel i7-7700	15.5
+Intel i7-7700T	6.5
+Intel i7-8265U	4.2
+Intel i7-8700	16
+Intel i7-8700T	10
+Intel i7-9700T	6
+Intel N100	6
+Intel N150	6
+Intel N200	6
+Intel Xeon E5-1650 v3	80
 Intel Xeon E5-2620 v3	60
 Intel Xeon E5-2670 v3	90
-Intel Xeon E5-1650 v3	80
 Intel Xeon E5-2699 v3	150
-Intel i7-7700	15.5
-Intel i5-4250U (NUC)	4.6
-Intel Core i5-6260U (NUC)	12
-Intel i7-4765T  15
-Intel i5-4670   18.5
-Intel i5-4570T  12
-Intel i7-6700T  14
-Intel i5-6600T  10.5
-Intel i7-7700T  6.5
-Intel i5-8500   9.5
-Intel i7-9700T  6
-Intel i3-9100T  5
-Intel i5-10100T 5
-Intel i7-10700T 8
-Intel i5-12100T 4
-Intel i3-13100T 3.25
-Intel i5-8600T 6.5
-Intel i5-8400T 9.5
-Intel i5-8365U 3.8
-Intel i7-8265U 4.2
-Intel i3-8145U 4.5
-Intel i7-7600T 8.0
-Intel i5-7400T 10.5
-Intel i5-6400T 12.0
-Intel i3-6100T 14.0
-Intel i5-4785T 13.5
-Intel i5-4590T 11.0
-Intel i3-4160T 15.0
-Intel i5-4150T 12.5
-Intel i3-4130T 16.0
-Intel i5-3470T 18.0
-Intel i3-3220T 19.5
-Intel i5-10100T 5.0
-Intel i3-1005G 4.0
-Intel i5-9600 8.5
-Intel i5-9500 9.0
-Intel i3-9100 6.5
-Intel i5-8600 10.0
-Intel i5-7600 11.0
-Intel i5-7500 12.5
-Intel i3-7100 14.5
-Intel i7-6700 15.0
-Intel i5-6600 10.5
-Intel i5-6500 12.0
-Intel i7-4770 17.0
-Intel i5-4590 15.5
-Intel i3-4130 17.5
-Intel i5-3570 19.0
+Intel Xeon W-1250	60
+Raspberry Pi Model B (3)	4
+Raspberry Pi Model B (5)	8
+Raspberry Pi Model B+ (4)	2.85

@@ -7,4 +7,7 @@ python-dotenv==1.0.1
 pytest==8.0.0
 pytest-cov==4.1.0
 pytest-mock
-tenacity==8.2.3 
+tenacity==8.2.3
+apscheduler==3.10.4
+pytz==2023.3
+cryptography==41.0.7 

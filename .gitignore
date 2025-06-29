@@ -51,7 +51,13 @@ Thumbs.db
 ebay_token.json
 set_env.sh
 
+# Ignore other PNG images except the README screenshot
+*.png
+!homelab-shopper-screenshot.png
+
 # Project specific
 .env
 *.db 
 config.yaml
+
+# Large data files

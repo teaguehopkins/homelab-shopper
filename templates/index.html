@@ -30,12 +30,24 @@
             margin: 20px 0;
             text-align: center;
         }
+        .filter-item-group {
+            display: inline-block;
+            margin: 5px 10px;
+            vertical-align: middle;
+        }
+        .filter-item-label {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-right: 5px;
+            color: #333;
+        }
         .filter-input {
             padding: 8px 12px;
             font-size: 16px;
-            width: 50%;
+            width: 250px;
             border: 1px solid #ddd;
             border-radius: 4px;
+            box-sizing: border-box;
         }
         .filter-input:focus {
             outline: none;
@@ -130,31 +142,40 @@
         }
 
         @media (max-width: 768px) {
+            .filter-item-group {
+                display: flex;
+                align-items: center;
+                margin: 10px auto;
+                width: 90%;
+            }
+            .filter-item-label {
+                margin-right: 5px;
+            }
             .filter-input {
-                width: 90%; /* Adjust as needed, allowing some padding */
+                flex-grow: 1;
+                min-width: 0;
+                width: auto;
             }
 
             table {
-                display: block; /* Allows horizontal scrolling if content overflows */
+                display: block;
                 overflow-x: auto;
-                white-space: nowrap; /* Prevents cell content from wrapping, maintaining column structure */
+                white-space: nowrap;
             }
 
             th, td {
-                white-space: nowrap; /* Ensure headers also don't wrap unexpectedly */
+                white-space: nowrap;
             }
             
-            /* Optional: reduce padding on smaller screens for table cells */
             th, td {
                 padding: 8px; 
             }
 
-            /* Optional: reduce font size for the whole body or specific elements */
             body {
                 font-size: 14px;
             }
             .tco-assumptions-form {
-                grid-template-columns: 1fr; /* Stack inputs on smaller screens */
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -164,7 +185,14 @@
         <button class="search-button" onclick="search()">Search for Deals</button>
     </div>
     <div class="filter-container">
-        <input type="text" class="filter-input" id="filterInput" placeholder="Filter results..." oninput="filterResults()">
+        <div class="filter-item-group">
+            <label for="filterInput" class="filter-item-label">+</label>
+            <input type="text" class="filter-input" id="filterInput" placeholder="Filter results..." oninput="filterResults()">
+        </div>
+        <div class="filter-item-group">
+            <label for="negativeFilterInput" class="filter-item-label">-</label>
+            <input type="text" class="filter-input" id="negativeFilterInput" placeholder="Exclude results..." oninput="filterResults()">
+        </div>
     </div>
 
     <div class="tco-assumptions-container">
@@ -217,6 +245,7 @@
                 <th onclick="sortTable('performance')">Performance <span class="sort-icon"></span></th>
                 <th onclick="sortTable('ram')">RAM <span class="sort-icon"></span></th>
                 <th onclick="sortTable('storage')">Storage <span class="sort-icon"></span></th>
+                <th>AC Adapter?</th>
                 <th onclick="sortTable('free_shipping')">Free Ship <span class="sort-icon"></span></th>
                 <th onclick="sortTable('tco')">TCO <span class="sort-icon"></span></th>
                 <th onclick="sortTable('performance_per_dollar')">Perf / $ <span class="sort-icon"></span></th>
@@ -228,6 +257,7 @@
                 <th style="text-align: center;"><input type="checkbox" id="hideNoPerformance" onchange="filterResults()" title="Hide items without Performance"></th>
                 <th style="text-align: center;"><input type="checkbox" id="hideNoRAM" onchange="filterResults()" title="Hide items without RAM"></th>
                 <th style="text-align: center;"><input type="checkbox" id="hideNoStorage" onchange="filterResults()" title="Hide items without Storage"></th>
+                <th></th>
                 <th style="text-align: center;"><input type="checkbox" id="hideNoFreeShipping" onchange="filterResults()" title="Hide items that are not free shipping"></th>
                 <th style="text-align: center;"><input type="checkbox" id="hideNoTCO" onchange="filterResults()" title="Hide items without TCO"></th>
                 <th style="text-align: center;"><input type="checkbox" id="hideNoPerfPerDollar" onchange="filterResults()" title="Hide items without Perf/$"></th>
@@ -236,412 +266,8 @@
         <tbody id="results"></tbody>
     </table>
 
-    <script>
-        let currentSort = {
-            column: 'price',
-            order: 'asc'
-        };
-        let currentResults = [];  // Store results in memory
-        let filteredResults = []; // Store filtered results
-        let totalFoundAPI = 0;    // Store total found by API
-        let originalRawResults = []; // Store raw results before any TCO calculation for recalculation
-
-        function formatPrice(price) {
-            if (price === null) return 'N/A';
-            return '$' + parseFloat(price).toFixed(2);
-        }
-
-        function extractCPUInfo(cpuString) {
-            if (!cpuString || cpuString === 'N/A') return { type: 'N/A', model: 'N/A' };
-            
-            // Try to match Intel Core iX series (e.g., i7-8700T)
-            const iXMatch = cpuString.match(/^(i[3579])(?:-(\d{4,5}[a-z\d]*))?$/i);
-            if (iXMatch) {
-                return {
-                    type: iXMatch[1].toUpperCase(), // i3, i5, i7, i9
-                    model: iXMatch[2] ? iXMatch[2].toUpperCase() : 'N/A' // Model number like 8700T or N/A if just i7
-                };
-            }
-
-            // Try to match Intel N-series (e.g., N100, N305)
-            const nSeriesMatch = cpuString.match(/^(N\d{2,3})$/i);
-            if (nSeriesMatch) {
-                return {
-                    type: 'N-SERIES', // Or just 'N' or 'Intel' as preferred
-                    model: nSeriesMatch[1].toUpperCase() // Model like N100
-                };
-            }
-            
-            // Fallback if no specific pattern matches - could return the original string as model
-            // For now, defaulting to N/A to maintain consistency with previous unmatcheds.
-            // Consider if we want to display the raw cpuString if it doesn't match known patterns.
-            // For example: return { type: 'Unknown', model: cpuString };
-            return { type: 'N/A', model: 'N/A' };
-        }
-
-        function formatPerfPerDollar(value) {
-            if (value === null || value === undefined) return 'N/A';
-            return parseFloat(value).toFixed(1); // Format to 1 decimal place
-        }
-
-        function filterResults() {
-            const filterText = document.getElementById('filterInput').value.toLowerCase();
-            const hideNoCPUType = document.getElementById('hideNoCPUType').checked;
-            const hideNoCPUModel = document.getElementById('hideNoCPUModel').checked;
-            const hideNoRAM = document.getElementById('hideNoRAM').checked;
-            const hideNoStorage = document.getElementById('hideNoStorage').checked;
-            const hideNoPerformance = document.getElementById('hideNoPerformance').checked;
-            const hideNoPerfPerDollar = document.getElementById('hideNoPerfPerDollar').checked;
-            const hideNoFreeShipping = document.getElementById('hideNoFreeShipping').checked;
-            const hideNoTCO = document.getElementById('hideNoTCO').checked;
-            
-            filteredResults = currentResults.filter(item => {
-                const cpuInfo = extractCPUInfo(item.cpu_model); // item.cpu_model is the original string like "i7-8700T"
-                
-                // Apply N/A filters
-                if (hideNoCPUType && (!cpuInfo.type || cpuInfo.type === 'N/A')) return false;
-                if (hideNoCPUModel && (!cpuInfo.model || cpuInfo.model === 'N/A')) return false;
-                if (hideNoRAM && (!item.ram || item.ram === 'N/A' || item.ram.trim() === '')) return false;
-                if (hideNoStorage && (!item.storage || item.storage === 'N/A' || item.storage.trim() === '')) return false;
-                if (hideNoPerformance && (!item.performance || item.performance === 'N/A' || item.performance === 0)) return false;
-                if (hideNoPerfPerDollar && (item.performance_per_dollar === null || item.performance_per_dollar === undefined)) return false;
-                if (hideNoFreeShipping && !item.free_shipping) return false;
-                if (hideNoTCO && (item.tco === null || item.tco === undefined)) return false;
-
-                // Apply text filter
-                return (
-                    (item.title && item.title.toLowerCase().includes(filterText)) ||
-                    (cpuInfo.type && cpuInfo.type !== 'N/A' && cpuInfo.type.toLowerCase().includes(filterText)) ||
-                    (cpuInfo.model && cpuInfo.model !== 'N/A' && cpuInfo.model.toLowerCase().includes(filterText)) ||
-                    (item.ram && item.ram !== 'N/A' && item.ram.toLowerCase().includes(filterText)) ||
-                    (item.storage && item.storage !== 'N/A' && item.storage.toLowerCase().includes(filterText)) ||
-                    (item.price && formatPrice(item.price).toLowerCase().includes(filterText)) ||
-                    (item.performance && String(item.performance).includes(filterText)) ||
-                    (item.performance_per_dollar && formatPerfPerDollar(item.performance_per_dollar).includes(filterText)) || // Filter by Perf/$
-                    (item.tco && formatPrice(item.tco).toLowerCase().includes(filterText))
-                );
-            });
-            displayResults(filteredResults);
-            updateSummary(); // Update count after filtering
-        }
-
-        function sortTable(column) {
-            // Update sort order
-            if (currentSort.column === column) {
-                currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSort.column = column;
-                currentSort.order = 'asc';
-            }
-
-            // Update sort icons
-            document.querySelectorAll('.sort-icon').forEach(icon => {
-                icon.className = 'sort-icon';
-            });
-            const currentIcon = document.querySelector(`th:nth-child(${getColumnIndex(column)}) .sort-icon`);
-            currentIcon.className = `sort-icon sort-${currentSort.order}`;
-
-            // Sort and display results
-            displayResults(filteredResults);
-        }
-
-        function getColumnIndex(column) {
-            const columns = ['title', 'price', 'cpu_type', 'cpu_model', 'performance', 'ram', 'storage', 'free_shipping', 'tco', 'performance_per_dollar'];
-            return columns.indexOf(column) + 1;
-        }
-
-        function displayResults(results = filteredResults) {
-            const resultsElement = document.getElementById('results');
-            resultsElement.innerHTML = '';
-            
-            // Sort the results
-            const sortedResults = [...results].sort((a, b) => {
-                let aVal = a[currentSort.column]; // Original value (e.g., price, full cpu string, ram string)
-                let bVal = b[currentSort.column];
-
-                // --- Special handling for CPU columns --- 
-                if (currentSort.column === 'cpu_type') {
-                    aVal = extractCPUInfo(a.cpu_model).type;
-                    bVal = extractCPUInfo(b.cpu_model).type;
-                } else if (currentSort.column === 'cpu_model') {
-                    aVal = extractCPUInfo(a.cpu_model).model;
-                    bVal = extractCPUInfo(b.cpu_model).model;
-                }
-                // --- End special handling ---
-
-                // Handle N/A or null values generally
-                const isANull = aVal === null || aVal === undefined || aVal === 'N/A';
-                const isBNull = bVal === null || bVal === undefined || bVal === 'N/A';
-
-                if (isANull && isBNull) return 0;
-                if (isANull) return currentSort.order === 'asc' ? 1 : -1; // N/A values go last in asc
-                if (isBNull) return currentSort.order === 'asc' ? -1 : 1; // N/A values go last in asc
-                
-                // Numeric sorting for price, tco, performance, and performance_per_dollar
-                if ([ 'price', 'tco', 'performance', 'performance_per_dollar'].includes(currentSort.column)) {
-                    return (currentSort.order === 'asc' ? 1 : -1) * (Number(aVal) - Number(bVal));
-                }
-                
-                // Numeric sorting for RAM and storage
-                if (currentSort.column === 'ram' || currentSort.column === 'storage') {
-                    const aNum = parseInt(aVal) || 0;
-                    const bNum = parseInt(bVal) || 0;
-                    const aGB = String(aVal).toLowerCase().includes('tb') ? aNum * 1024 : aNum;
-                    const bGB = String(bVal).toLowerCase().includes('tb') ? bNum * 1024 : bNum;
-                    return (currentSort.order === 'asc' ? 1 : -1) * (aGB - bGB);
-                }
-
-                // Boolean sorting for free_shipping
-                if (currentSort.column === 'free_shipping') {
-                    // True (free shipping) should come first in ascending sort
-                    const aBool = Boolean(aVal);
-                    const bBool = Boolean(bVal);
-                    if (aBool === bBool) return 0;
-                    return (currentSort.order === 'asc' ? 1 : -1) * (aBool ? -1 : 1);
-                }
-
-                // Special numeric sorting for CPU model (numeric part only)
-                if (currentSort.column === 'cpu_model') {
-                    // aVal and bVal are already the model part (e.g., "8700T", "10700", "N/A")
-                    const aNum = parseInt(String(aVal).replace(/[^\d]/g, '')) || 0;
-                    const bNum = parseInt(String(bVal).replace(/[^\d]/g, '')) || 0;
-                    if (aNum === 0 && bNum === 0) return 0; // Both are non-numeric or N/A
-                    if (aNum === 0) return currentSort.order === 'asc' ? 1 : -1; // Non-numeric go last
-                    if (bNum === 0) return currentSort.order === 'asc' ? -1 : 1; // Non-numeric go last
-                    return (currentSort.order === 'asc' ? 1 : -1) * (aNum - bNum);
-                }
-                
-                // String sorting for title and cpu_type
-                if (currentSort.column === 'title' || currentSort.column === 'cpu_type') {
-                     return (currentSort.order === 'asc' ? 1 : -1) * 
-                        String(aVal).localeCompare(String(bVal));
-                }
-
-                // Default case (shouldn't be reached ideally)
-                return 0;
-            });
-            
-            // Display sorted results
-            sortedResults.forEach(listing => {
-                const cpuInfo = extractCPUInfo(listing.cpu_model);
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td><a href="${listing.item_url}" target="_blank">${listing.title}</a></td>
-                    <td>${formatPrice(listing.price)}</td>
-                    <td>${cpuInfo.type}</td>
-                    <td>${cpuInfo.model}</td>
-                    <td>${listing.performance ? listing.performance.toLocaleString() : 'N/A'}</td>
-                    <td>${listing.ram || 'N/A'}</td>
-                    <td>${listing.storage || 'N/A'}</td>
-                    <td>${listing.free_shipping ? '✓' : '✗'}</td>
-                    <td>${formatPrice(listing.tco)}</td>
-                    <td>${formatPerfPerDollar(listing.performance_per_dollar)}</td>
-                `;
-                resultsElement.appendChild(row);
-            });
-        }
-
-        // Function to update the results summary text
-        function updateSummary() {
-            const summaryElement = document.getElementById('results-summary');
-            const shownCount = filteredResults.length; // Count after filtering
-            if (shownCount > 0 || totalFoundAPI > 0) { // Only show if there are results or a total
-                 summaryElement.textContent = `Showing ${shownCount} of ${totalFoundAPI} total listings found by API.`;
-            } else {
-                 summaryElement.textContent = ''; // Clear if no results and no total
-            }
-        }
-
-        function search() {
-            const loading = document.getElementById('loading');
-            const results = document.getElementById('results');
-            const filterInput = document.getElementById('filterInput');
-            
-            loading.style.display = 'block';
-            loading.textContent = "Searching for deals...";
-            results.innerHTML = '';
-            filterInput.value = '';
-
-            // Reset all filter checkboxes
-            const checkboxes = document.querySelectorAll('.filter-row input[type="checkbox"]');
-            checkboxes.forEach(cb => cb.checked = false);
-            
-            fetch('/search', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({}) // Empty body, search params are from config on backend
-            })
-            .then(response => response.json())
-            .then(data => {
-                // Update loading message based on API response
-                if (data.full_search_enabled) {
-                    loading.textContent = "Full search enabled. This may take a while...";
-                } else {
-                    loading.textContent = "Searching for deals..."; // Default message if not full_search
-                }
-                
-                if (data.status === 'success') {
-                    originalRawResults = data.listings.map(item => ({...item})); // Store a deep copy for recalculation
-                    currentResults = data.listings.map(item => ({...item})); // Make a copy to modify with initial TCO
-                    totalFoundAPI = data.total_found || 0; 
-                    filteredResults = [...currentResults]; 
-                    populateTCOFields(data.tco_defaults); // Populate TCO fields with defaults from backend
-                    displayResults(currentResults); 
-                    updateSummary(); 
-                } else {
-                    results.innerHTML = `<tr><td colspan="100%" style="text-align:center; color:red;">Error: ${data.message}</td></tr>`;
-                    currentResults = []; // Clear results on error
-                    filteredResults = [];
-                    totalFoundAPI = 0;
-                    updateSummary(); // Update summary to show 0/0
-                }
-            })
-            .catch(error => {
-                console.error('Error during search:', error);
-                results.innerHTML = `<tr><td colspan="100%" style="text-align:center; color:red;">An unexpected error occurred. Please check console.</td></tr>`;
-                currentResults = []; // Clear results on error
-                filteredResults = [];
-                totalFoundAPI = 0;
-                updateSummary(); // Update summary to show 0/0
-            })
-            .finally(() => {
-                // Set loading message back to default for the next search, then hide it.
-                // The conditional message specific to full_search will be set upon the next actual search initiation.
-                loading.textContent = "Searching for deals...";
-                loading.style.display = 'none';
-            });
-        }
-
-        function toggleTCOAssumptions() {
-            const form = document.getElementById('tcoAssumptionsForm');
-            const button = document.getElementById('tcoToggleButton');
-            if (form.style.display === 'none') {
-                form.style.display = 'grid'; // Use grid to match CSS
-                button.textContent = 'Adjust TCO Assumptions ▲';
-            } else {
-                form.style.display = 'none';
-                button.textContent = 'Adjust TCO Assumptions ▼';
-            }
-        }
-
-        function populateTCOFields(tcoDefaults) {
-            if (!tcoDefaults) return;
-            document.getElementById('kwh_cost').value = tcoDefaults.kwh_cost;
-            document.getElementById('lifespan_years').value = tcoDefaults.lifespan_years;
-            document.getElementById('shipping_cost_t_cpu').value = tcoDefaults.shipping_cost_t_cpu;
-            document.getElementById('shipping_cost_non_t_cpu').value = tcoDefaults.shipping_cost_non_t_cpu;
-            document.getElementById('required_ram_gb').value = tcoDefaults.required_ram_gb;
-            document.getElementById('ram_upgrade_flat_cost').value = tcoDefaults.ram_upgrade_flat_cost;
-            document.getElementById('required_storage_gb').value = tcoDefaults.required_storage_gb;
-            document.getElementById('storage_upgrade_flat_cost').value = tcoDefaults.storage_upgrade_flat_cost;
-        }
-
-        function parseCapacityToGBJS(capacityStr) {
-            if (!capacityStr || capacityStr.toUpperCase() === 'N/A') {
-                return 0;
-            }
-            capacityStr = capacityStr.toUpperCase();
-            const numPartMatch = capacityStr.match(/(\d+\.\d+|\d+)/); // Extracts numbers, including decimals
-
-            if (!numPartMatch) {
-                return 0;
-            }
-
-            try {
-                const val = parseFloat(numPartMatch[0]);
-                if (capacityStr.includes('TB')) {
-                    return parseInt(val * 1024);
-                }
-                if (capacityStr.includes('GB')) {
-                    return parseInt(val);
-                }
-                // if no unit, assume GB (matches Python logic)
-                return parseInt(val); 
-            } catch (e) {
-                return 0;
-            }
-        }
-
-        function calculateTCOJS(item, assumptions) {
-            if (item.price === null || item.price === undefined || item.cpu_idle_power === null || item.cpu_idle_power === undefined) {
-                return { tco: null, performance_per_dollar: null };
-            }
-
-            const numericPrice = parseFloat(item.price);
-            const idleWatts = parseFloat(item.cpu_idle_power);
-
-            const energyCostCalc = (idleWatts / 1000) * (24 * 365 * parseFloat(assumptions.lifespan_years)) * parseFloat(assumptions.kwh_cost);
-            
-            let shippingCostToAdd = 0;
-            if (!item.free_shipping) {
-                if (item.cpu_model && item.cpu_model.toUpperCase().endsWith('T')) {
-                    shippingCostToAdd = parseFloat(assumptions.shipping_cost_t_cpu);
-                } else {
-                    shippingCostToAdd = parseFloat(assumptions.shipping_cost_non_t_cpu);
-                }
-            }
-
-            let ramShortfallCost = 0;
-            const itemRamGb = parseCapacityToGBJS(item.ram);
-            if (itemRamGb < parseFloat(assumptions.required_ram_gb)) {
-                ramShortfallCost = parseFloat(assumptions.ram_upgrade_flat_cost);
-            }
-
-            let storageShortfallCost = 0;
-            const itemStorageGb = parseCapacityToGBJS(item.storage);
-            if (itemStorageGb < parseFloat(assumptions.required_storage_gb)) {
-                storageShortfallCost = parseFloat(assumptions.storage_upgrade_flat_cost);
-            }
-
-            const tco = numericPrice + energyCostCalc + shippingCostToAdd + ramShortfallCost + storageShortfallCost;
-            let performancePerDollar = null;
-            if (item.performance && tco && tco > 0) {
-                performancePerDollar = parseFloat(item.performance) / tco;
-            }
-            return { tco: tco, performance_per_dollar: performancePerDollar };
-        }
-
-        function recalculateAndDisplay() {
-            const assumptions = {
-                kwh_cost: document.getElementById('kwh_cost').value,
-                lifespan_years: document.getElementById('lifespan_years').value,
-                shipping_cost_t_cpu: document.getElementById('shipping_cost_t_cpu').value,
-                shipping_cost_non_t_cpu: document.getElementById('shipping_cost_non_t_cpu').value,
-                required_ram_gb: document.getElementById('required_ram_gb').value,
-                ram_upgrade_flat_cost: document.getElementById('ram_upgrade_flat_cost').value,
-                required_storage_gb: document.getElementById('required_storage_gb').value,
-                storage_upgrade_flat_cost: document.getElementById('storage_upgrade_flat_cost').value
-            };
-
-            // Create a deep copy of originalRawResults to avoid modifying it directly if it contains complex objects
-            // For this structure, a shallow copy per item is fine, then update tco and perf/$
-            currentResults = originalRawResults.map(item => {
-                const { tco, performance_per_dollar } = calculateTCOJS(item, assumptions);
-                return { ...item, tco, performance_per_dollar }; // Create new item object with updated values
-            });
-            
-            filterResults(); // This will re-apply filters and call displayResults & updateSummary
-        }
-
-        // Initial sort icon setup
-        document.addEventListener('DOMContentLoaded', () => {
-            const priceHeader = document.querySelector('th:nth-child(2) .sort-icon');
-            priceHeader.className = 'sort-icon sort-asc';
-
-            // Add event listeners to TCO input fields
-            const tcoInputIds = [
-                'kwh_cost', 'lifespan_years', 'shipping_cost_t_cpu', 'shipping_cost_non_t_cpu',
-                'required_ram_gb', 'ram_upgrade_flat_cost', 'required_storage_gb', 'storage_upgrade_flat_cost'
-            ];
-            tcoInputIds.forEach(id => {
-                const inputElement = document.getElementById(id);
-                if (inputElement) {
-                    inputElement.addEventListener('change', recalculateAndDisplay); // Or 'input' for more immediate updates
-                }
-            });
-        });
-    </script>
+    <script src="/static/js/utils.js"></script>
+    <script src="/static/js/tco.js"></script>
+    <script src="/static/js/main.js"></script>
 </body>
 </html> 

@@ -9,6 +9,19 @@ import os
 from datetime import datetime, timedelta
 from tenacity import retry, stop_after_attempt, wait_exponential
 from urllib.parse import urlencode, quote_plus, parse_qs, urlparse
+from pathlib import Path  # NEW: path handling
+import tempfile  # NEW: fallback directory for token storage
+# --- Optional encryption support --------------------------------------
+# Cryptography is listed in requirements, but to avoid import-time
+# failures (e.g. when the library or its type stubs are missing in an
+# editor environment) we wrap it in a try/except and degrade gracefully.
+try:
+    from cryptography.fernet import Fernet, InvalidToken  # type: ignore
+except ImportError:  # pragma: no cover – treat encryption as optional
+    Fernet = None  # type: ignore[assignment]
+    class _Dummy(Exception):
+        """Placeholder to keep type checkers happy when cryptography absent."""
+    InvalidToken = _Dummy  # type: ignore[valid-type]
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -16,16 +29,54 @@ logger = logging.getLogger(__name__)
 class EBayAPI:
     """Class to handle eBay API interactions."""
     
-    def __init__(self, app_id, cert_id, sandbox=True, token_file="ebay_token.json"):
-        """Initialize the eBay API client with credentials."""
+    def __init__(self, app_id, cert_id, sandbox=True, token_file: str | None = None):
+        """Initialize the eBay API client with credentials.
+
+        Args:
+            app_id: eBay App-ID.
+            cert_id: eBay Cert-ID.
+            sandbox: Use the eBay sandbox endpoint when True.
+            token_file: Optional path where the OAuth bearer token will be
+                cached.  If ``None`` the path is resolved in this order:
+
+                1. ``$EBAY_TOKEN_PATH`` environment variable (absolute or
+                   relative).
+                2. ``<tmpdir>/ebay_token.json`` where *tmpdir* is the OS
+                   temporary directory.  The location is outside the project
+                   repo, preventing accidental check-in.
+        """
         if not app_id or not cert_id:
             raise ValueError("eBay API credentials are required")
             
         self.app_id = app_id
         self.cert_id = cert_id
         self.sandbox = sandbox
-        self.base_url = "https://api.sandbox.ebay.com/buy/browse/v1" if sandbox else "https://api.ebay.com/buy/browse/v1"
-        self.token_file = token_file
+        self.base_url = (
+            "https://api.sandbox.ebay.com/buy/browse/v1"
+            if sandbox
+            else "https://api.ebay.com/buy/browse/v1"
+        )
+
+        # ---------------- Encryption key -------------------------------
+        enc_key = os.getenv("EBAY_TOKEN_ENC_KEY")
+        self._fernet: object | None = None
+        if enc_key:
+            try:
+                # Key must be URL-safe base64 32-byte key (44 chars)
+                self._fernet = Fernet(enc_key.encode())
+            except Exception as exc:  # pragma: no cover – invalid key
+                logger.error("Invalid EBAY_TOKEN_ENC_KEY: %s", exc)
+                self._fernet = None
+
+        # ---------------- Token file path resolution -------------------
+        if token_file is None:
+            token_file = os.getenv("EBAY_TOKEN_PATH")
+
+        if not token_file:
+            # Fall back to a safe location outside the repo tree
+            token_file = str(Path(tempfile.gettempdir()) / "ebay_token.json")
+
+        self.token_file: Path = Path(token_file)
         self.token = None
         self.refresh_token = None
         self.token_expiry = None
@@ -48,10 +99,23 @@ class EBayAPI:
     
     def _load_token(self):
         """Load token from file if it exists and is not expired."""
-        if os.path.exists(self.token_file):
+        if self.token_file.exists():
             try:
-                with open(self.token_file, 'r') as f:
-                    token_data = json.load(f)
+                # Read raw bytes; may be encrypted
+                raw_bytes = self.token_file.read_bytes()
+
+                if self._fernet is not None:
+                    try:
+                        raw_bytes = self._fernet.decrypt(raw_bytes)
+                    except InvalidToken:
+                        logger.error("Failed to decrypt token file. Wrong key?")
+                        return
+
+                try:
+                    token_data = json.loads(raw_bytes.decode())
+                except Exception as json_exc:
+                    logger.error("Token file is corrupt or not JSON: %s", json_exc)
+                    return
                     
                 # Check if token is expired
                 expiry = datetime.fromisoformat(token_data['expiry'])
@@ -68,54 +132,81 @@ class EBayAPI:
     def _save_token(self, token_data):
         """Save token data to file."""
         try:
-            with open(self.token_file, 'w') as f:
-                json.dump(token_data, f)
-            logger.info("Token saved to file")
+            # Ensure parent directory exists (e.g. /run/secrets)
+            self.token_file.parent.mkdir(parents=True, exist_ok=True)
+
+            data_bytes = json.dumps(token_data).encode()
+            if self._fernet is not None:
+                data_bytes = self._fernet.encrypt(data_bytes)
+
+            with self.token_file.open('wb') as f:
+                f.write(data_bytes)
+
+            try:
+                self.token_file.chmod(0o600)
+            except Exception as perm_exc:  # pragma: no cover – best-effort
+                logger.debug("Could not set permissions on token file: %s", perm_exc)
+
+            logger.info("Token saved to %s", self.token_file)
         except Exception as e:
             logger.error(f"Error saving token: {str(e)}")
     
     def get_oauth_token(self):
-        """Get OAuth token using client credentials grant flow."""
-        token_url = "https://api.sandbox.ebay.com/identity/v1/oauth2/token" if self.sandbox else "https://api.ebay.com/identity/v1/oauth2/token"
-        
+        """Get OAuth token using client-credentials flow.
+
+        If a non-expired token is already loaded in ``self.token`` we simply
+        return ``True`` without hitting the eBay identity endpoint again.
+        """
+        # Short-circuit when we already have a token that is valid for at
+        # least another minute. This avoids an extra network round-trip on
+        # every request/cron run.
+        if self.token and self.token_expiry and (self.token_expiry - datetime.now()).total_seconds() > 60:
+            return True  # Token still good – nothing to do.
+
+        token_url = (
+            "https://api.sandbox.ebay.com/identity/v1/oauth2/token"
+            if self.sandbox
+            else "https://api.ebay.com/identity/v1/oauth2/token"
+        )
+
         # Create Base64 encoded credentials
         credentials = f"{self.app_id}:{self.cert_id}"
-        encoded_credentials = base64.b64encode(credentials.encode('utf-8')).decode('utf-8')
-        
+        encoded_credentials = base64.b64encode(credentials.encode("utf-8")).decode("utf-8")
+
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
-            "Authorization": f"Basic {encoded_credentials}"
+            "Authorization": f"Basic {encoded_credentials}",
         }
-        
+
         data = {
             "grant_type": "client_credentials",
-            "scope": "https://api.ebay.com/oauth/api_scope"
+            "scope": "https://api.ebay.com/oauth/api_scope",
         }
-        
+
         try:
             response = requests.post(token_url, headers=headers, data=data)
             response.raise_for_status()
-            
+
             token_data = response.json()
-            self.token = token_data['access_token']
-            self.token_expiry = datetime.now() + timedelta(seconds=token_data.get('expires_in', 7200))
-            
+            self.token = token_data["access_token"]
+            self.token_expiry = datetime.now() + timedelta(seconds=token_data.get("expires_in", 7200))
+
             # Save token data
             self._save_token({
-                'access_token': self.token,
-                'expiry': self.token_expiry.isoformat()
+                "access_token": self.token,
+                "expiry": self.token_expiry.isoformat(),
             })
-            
+
             # Update headers
             self.headers["Authorization"] = f"Bearer {self.token}"
-            
+
             logger.info("Successfully obtained access token")
             return True
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error getting OAuth token: {str(e)}")
-            if hasattr(e, 'response') and e.response is not None:
-                logger.error(f"Response text: {e.response.text}")
+
+        except requests.exceptions.RequestException as e:  # pragma: no cover – network errors
+            logger.error("Error getting OAuth token: %s", e)
+            if hasattr(e, "response") and e.response is not None:
+                logger.error("Response text: %s", e.response.text)
             return False
     
     def refresh_access_token(self):

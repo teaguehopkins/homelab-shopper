@@ -51,3 +51,10 @@ app:
     ram_upgrade_flat_cost: 30
     required_storage_gb: 120
     storage_upgrade_flat_cost: 15 
+
+# Alerts Configuration
+alerts:
+  perf_per_dollar_min: 40  # Minimum performance per dollar to trigger alert
+  recipients:
+    - you@example.com
+    - homelab@example.com 

@@ -9,6 +9,7 @@ services:
     # Use .env file for environment variables for secrets
     # See .env.example for required variables
     # Docker Compose will automatically load a .env file in this directory
+    restart: unless-stopped
     environment:
       - FLASK_APP=src/web_app.py
       - FLASK_ENV=${FLASK_ENV:-development} # Default to development if not set in .env
@@ -19,6 +20,28 @@ services:
     command: >
       sh -c "mkdir -p /app/data &&
              gunicorn --bind 0.0.0.0:5000 --timeout 300 src.web_app:app"
+    networks:
+      - default
+
+  alert-worker:
+    build: .
+    depends_on:
+      - web
+    environment:
+      - PYTHONPATH=/app
+      - EBAY_CLIENT_ID=${EBAY_CLIENT_ID}
+      - EBAY_CLIENT_SECRET=${EBAY_CLIENT_SECRET}
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_DOMAIN=${MAILGUN_DOMAIN}
+    command: >
+      sh -c "python -m src.alert_worker"
+    networks:
+      - default
+    labels:
+      - com.centurylinklabs.watchtower.enable="false"
 
 volumes:
-  db_data: 
+  db_data:
+
+networks:
+  default:

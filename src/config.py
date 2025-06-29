@@ -1,15 +1,12 @@
 import os
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Any, Optional
 import yaml
 from dotenv import load_dotenv
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Obtain module-level logger; assume global logging config set elsewhere.
 logger = logging.getLogger(__name__)
 
 def load_yaml_file(file_path: str) -> Dict[str, Any]:
@@ -75,6 +72,8 @@ def validate_searches(searches: Dict[str, Any]) -> None:
             if key not in search:
                 raise ValueError(f"Missing required search key: {key}")
 
+# Cache the parsed configuration once per process to avoid repeated disk reads.
+@lru_cache(maxsize=1)
 def load_config(config_file: str = 'config.yaml') -> Dict[str, Any]:
     """Load application configuration from YAML file."""
     try:
@@ -137,23 +136,4 @@ def _validate_ebay_credentials(config):
         logger.error(f"Error validating eBay credentials: {str(e)}")
         raise
 
-# def get_api_credentials() -> Dict[str, str]:
-#     """Get eBay API credentials from environment variables.
-#     
-#     Returns:
-#         Dictionary containing API credentials
-#         
-#     Raises:
-#         ValueError: If required credentials are missing
-#     """
-#     credentials = {
-#         'api_key': os.getenv('EBAY_API_KEY'),
-#         'client_id': os.getenv('EBAY_CLIENT_ID'),
-#         'client_secret': os.getenv('EBAY_CLIENT_SECRET')
-#     }
-#     
-#     # Check if we have at least one authentication method
-#     if not any(credentials.values()):
-#         raise ValueError("No eBay API credentials found in environment variables")
-#     
-#     return credentials 
+# Removed deprecated get_api_credentials commented section. 
